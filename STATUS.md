@@ -1,48 +1,52 @@
 # STATUS (single source of truth)
 
-**Last updated:** 2026-09-29 (end of Day 1 build)
-**Current phase:** Week 1 / Day 1 complete (software base) -> Day 2 bench bring-up
-**Overall health:** GREEN
+**Last updated:** 2026-10-01 (end of Day 3 software work)
+**Current phase:** Week 1 / Day 3 - headers hardened + pin diagrams done; hardware bring-up and Gate G1 pending (yours)
+**Overall health:** GREEN (no blockers; the real ESP32 toolchain build and all radio numbers are still unverified)
 
 ## Hardware confirmed
-Pixhawk 2.4.8 (DF13 6-pin TELEM1) | ESP32-C3 SuperMini x2 | nRF24L01+PA+LNA (owned) | 3D-printed enclosures (self-made)
+Pixhawk 2.4.8 (DF13 TELEM1) | ESP32-C3 SuperMini x2 | nRF24L01+PA+LNA (owned) | 3D-printed enclosures (self-made)
 
 ## Done
-- [x] Docs set (PRD, feasibility, architecture, BOM, budget, roadmap, tests, risks, decisions)
-- [x] Repo base: name `pixhawk-nrf24-telemetry`, hierarchy, .gitignore/.gitattributes/.editorconfig, LICENSE, CHANGELOG, CONTRIBUTING, CI, issue/PR templates
-- [x] PlatformIO workspace: envs `air`, `ground`, `native`
-- [x] LinkCore library (frame, ring buffer, packetizer, link stats) - **17/17 host tests pass**
-- [x] Day 2 bring-up firmware drafts (PRX/PTX counter exchange) + RF24 wrapper - syntax-checked only
-- [x] Docs: REPO_STRUCTURE, FIRMWARE_PRINCIPLES, HARDWARE_SETUP, enclosure brief, mavlink_sniff tool
+- [x] Day 1: docs, repo, LinkCore, CI
+- [x] Day 2: transparent bridge, io_pump, selftest, 5 firmware envs, CLI scripts, GCS guide
+- [x] Day 3: every `.h` reviewed against its `main.cpp`, hardened and tested -> `docs/HEADER_REFERENCE.md`
+  - new: `radio_config.h`, `air_unit.h`, `ground_unit.h`, `timing.h`, `radio_traits.h`; `StatusLed`; `RadioLink` read-back checks
+  - compile-time validation of pins, RF config (channel <= 80, ARD vs data rate, address) and radio contracts
+  - optimised: memcpy ring (no atomic RMW), LED writes only on change, radio serviced every 250 us on the air unit
+- [x] **63 host tests / 8 suites pass**, incl. the REAL `air` and `ground` `main.cpp` vs simulated peers (loss, outage, brown-out, back-pressure); ASan/UBSan clean; zero warnings with `-Wall -Wextra -Wshadow -Wconversion`
+- [x] **Final pin diagrams:** `hardware/wiring/air_unit_pinout.svg`, `ground_unit_pinout.svg` + `docs/PIN_DIAGRAM.md` (tables, wire lists, continuity checklist) + `docs/COMPONENTS.md`
+- [x] `scripts/git_day.py --day 3` (and `git_day2.py` wrapper)
 
-## In progress / needs you (Day 1 leftovers)
-- [ ] `git init` + push to GitHub (commands in `docs/REPO_STRUCTURE.md`)
-- [ ] Install PlatformIO, run `pio test -e native` and `pio run -e air -e ground` (first real compile)
-- [ ] Confirm you have the nRF24 **socket adapters** (3.3 V regulator) and a DF13 6-pin cable (see BOM)
-- [ ] Order any missing small parts (adapters, capacitors, cable, USB-TTL, perfboard)
-- [ ] Install Mission Planner or QGC; check Pixhawk firmware type/version
-- [ ] Measure boards for enclosure (`hardware/enclosure/README.md`)
+## Needs you now
+- [ ] `pip install platformio`; `pio test -e native` (63 tests); compile all 5 envs (first real build - expect tiny API fixes)
+- [ ] Wire both units per `docs/PIN_DIAGRAM.md` (match by silkscreen name), run the continuity checklist
+- [ ] T-01 (module sanity), T-02 (5 min, `gaps=0`) with `air_selftest` + `ground_selftest`
+- [ ] T-03 at 1 Mbps (then 2 Mbps / 250 kbps) with `SELFTEST_RATE_BPS=0` -> record `rxB/s` in FEASIBILITY (Gate G1: >= 5,800 B/s)
+- [ ] Confirm LED polarity (`LED_ACTIVE_LOW` in `pins.h`)
+- [ ] `python scripts/git_day.py --day 3 --merge --push` (tag `day-03`); upload STATUS + DAY-03 log to Project knowledge
 
-## Next actions (Day 2)
-1. Wire both units on breadboard with capacitors; antennas on first. Photos to `hardware/wiring/`.
-2. Flash `ground` and `air`; run T-01 then T-02 (counter exchange, 5 min, 0 loss).
-3. Fix any compile/API issues from the first build; record final pin map confirmation in ADR-007.
+## Next actions (Day 4)
+1. If G1 passes: wire Pixhawk TELEM1 (DF13) to the air unit, set params, flash `air` + `ground`.
+2. `tools/mavlink_sniff.py` integrity check (T-04); Mission Planner connect (T-06); COM-open reset test (T-14).
+3. If G1 fails: follow the actions in ROADMAP Day 3 (service interval, SPI wiring/capacitor, poll interval).
 
 ## Blockers
-- None. Watch: missing adapters/capacitors would block Day 2.
+- None. Watch: supply noise on the PA+LNA module (capacitor + adapter regulator), first real compile.
 
 ## Open questions
-- Do you own the nRF24 socket adapters / DF13 cable? (affects BOM and budget)
-- Which Pixhawk firmware + version (ArduPilot/PX4)?
-- Which OS/IDE (Windows + VS Code + PlatformIO assumed)?
+- Pixhawk firmware type/version (ArduPilot / PX4)?
+- Android phone model (native-USB CDC vs CP210x path)?
+- Do the nRF24 adapters you own match the pin names in `PIN_DIAGRAM.md` (VCC GND CE CSN SCK MOSI MISO IRQ)?
 
 ## Key numbers (fill as measured)
-| Metric | Target | Measured |
-|---|---|---|
-| Throughput (bench, 1 Mbps) | >= 5.8 KB/s | - |
-| Packet loss @ 300 m LOS | < 5% | - |
-| Latency one-way | < 30 ms | - |
-| Range LOS | >= 300 m | - |
+| Metric | Target | Simulated | Measured (hardware) |
+|---|---|---|---|
+| Throughput per direction (1 Mbps) | >= 5.8 KB/s | >= 26 KB / 2 s with 250 us service (ideal 15.5 KB/s) | - |
+| Downlink delivery @ 20% pkt + 10% ACK loss | >= 98% | >= 99% (60 seeds) | - |
+| Re-link after outage / brown-out | < 1 s | < 0.4 s / < 2.5 s incl. health check | - |
+| Packet loss @ 300 m LOS | < 5% | n/a | - |
+| Range LOS | >= 300 m | n/a | - |
 
 ## Last decisions
-ADR-007 pin map, ADR-008 monorepo with one PlatformIO project, ADR-009 header-only LinkCore, ADR-010 Pixhawk UART on GPIO0/1, ADR-011 drop-newest ring policy (see `docs/DECISIONS.md`).
+ADR-017 per-unit headers, ADR-018 compile-time validation, ADR-019 250 us air service + load/store-only ring, ADR-020 radio read-back verification, ADR-021 real main.cpp in host tests (see `docs/DECISIONS.md`).
