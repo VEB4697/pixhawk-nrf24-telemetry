@@ -1,0 +1,9 @@
+{
+  "name": "LinkCore",
+  "version": "0.1.0",
+  "description": "Portable (no Arduino dependency) core for the Pixhawk nRF24 telemetry bridge: framing, ring buffer, packetizer, link statistics.",
+  "keywords": "mavlink, nrf24, telemetry, esp32",
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*"
+}
